@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SITP验证码练习场</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: white;
+            font-family: 'Segoe UI', 'Poppins', system-ui, -apple-system, 'Roboto', sans-serif;
+            padding: 2rem 2rem;
+            color: #1e2a32;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .hero h1 {
+            font-size: 2rem;
+            color: #2c3e50;
+        }
+
+        .hero p {
+            color: #4a6a7f;
+            margin-top: 0.5rem;
+        }
+
+        .captcha-section {
+            padding: 1.5rem 0;
+            border-bottom: 1px solid #e0e4e8;
+        }
+
+        .captcha-section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c5f8a;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .refresh-btn {
+            background: #f0f2f5;
+            border: 1px solid #ccd2d9;
+            color: #2c5f8a;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: #e0e6ed;
+        }
+
+        .captcha-content {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.6rem;
+            margin-top: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .input-group input {
+            flex: 2;
+            padding: 0.6rem 1rem;
+            border-radius: 2rem;
+            border: 1px solid #ccd2d9;
+            background: white;
+            font-size: 0.9rem;
+            outline: none;
+            font-family: monospace;
+        }
+
+        .input-group input:focus {
+            border-color: #2c5f8a;
+        }
+
+        .input-group button, .verify-btn {
+            background: #2c5f8a;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 2rem;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .input-group button:hover, .verify-btn:hover {
+            background: #1e4668;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            padding: 0.4rem;
+            border-radius: 1rem;
+            text-align: center;
+            margin-top: 0.8rem;
+            background: #eef2f5;
+            color: #2c3e50;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* 拼图滑块专用 */
+        .puzzle-slider {
+            width: 100%;
+            margin: 12px 0;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+            background: #e9ecef;
+        }
+        .timer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="hero">
+        <h1>SITP验证码练习场</h1>
+        <p>从上到下，挨个攻破验证码</p>
+    </div>
+
+    <!-- 1. 图片扭曲码 -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>📸 图文扭曲码</span>
+            <button class="refresh-btn" data-refresh="captcha1">⟳ 刷新</button>
+        </div>
+        <div class="captcha-content">
+            <canvas id="canvasCaptcha" width="240" height="80" style="width:100%; max-width:280px; height:auto; background:#f0f2f5; border-radius:8px;"></canvas>
+            <div class="input-group">
+                <input type="text" id="captchaInput" placeholder="输入验证码 (不区分大小写)" autocomplete="off">
+                <button id="verifyCaptchaBtn">✔️ 验证</button>
+            </div>
+            <div class="status" id="captcha1Status">⚡ 未验证 · 点刷新换图</div>
+        </div>
+    </div>
+
+    <!-- 2. 算术验证码 -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>🧮 算术验证</span>
+            <button class="refresh-btn" data-refresh="math">⟳ 新算术</button>
+        </div>
+        <div class="captcha-content">
+            <div style="font-size:1.5rem; font-weight:bold; background:#e9ecef; padding:8px; border-radius:12px; text-align:center;" id="mathQuestion">12 + 7 = ?</div>
+            <div class="input-group">
+                <input type="number" id="mathAnswer" placeholder="计算结果" autocomplete="off">
+                <button id="verifyMathBtn">🔢 验证</button>
+            </div>
+            <div class="status" id="mathStatus">❓ 计算正确性检验</div>
+        </div>
+    </div>
+
+<!-- 3. 拼图滑块验证码（水平滑块控制拼图X，两个空缺，Y匹配才正确） -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>🧩 拼图滑块验证码</span>
+            <button class="refresh-btn" data-refresh="puzzle">⟳ 刷新拼图</button>
+        </div>
+        <!-- 画布单独占一块，不加内边距干扰 -->
+        <div class="captcha-content" style="padding: 0; background: transparent;">
+            <canvas id="puzzleCanvas" width="500" height="250" style="width:100%; height:auto; max-width:500px; display:block; margin:0 auto; border-radius:8px;"></canvas>
+        </div>
+        <!-- 滑块区域：宽度与画布视觉宽度完全一致 -->
+        <div style="width:100%; max-width:500px; margin: 12px auto 0; padding:0;">
+            <input type="range" id="puzzleSlider" class="puzzle-slider" min="0" max="0" value="0" step="1" style="width:100%;">
+        </div>
+        <!-- 计时器和状态区域 -->
+        <div class="captcha-content" style="padding-top: 0.5rem;">
+            <div class="timer-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                <span>⏱️ 剩余时间: <strong id="timerDisplay">30</strong> 秒</span>
+            </div>
+            <div id="puzzleStatus" class="status">✨ 拖动滑块，将拼图移动到正确空缺处，然后点击验证</div>
+        </div>
+    </div>
+    <!-- 4. 点选图标码 -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>🐾 点选真我</span>
+            <button class="refresh-btn" data-refresh="icons">⟳ 换目标</button>
+        </div>
+        <div class="captcha-content">
+            <div style="margin-bottom:10px; font-weight:bold; text-align:center;" id="iconTaskDesc">请点击🐶小狗图标</div>
+            <div class="icon-selector" id="iconSelector" style="display:flex; justify-content:center; gap:1.5rem;">
+                <div class="icon-item" data-icon="cat" style="font-size:2.5rem; background:#e9ecef; padding:0.5rem; border-radius:1rem; cursor:pointer; width:80px; text-align:center;">🐱</div>
+                <div class="icon-item" data-icon="dog" style="font-size:2.5rem; background:#e9ecef; padding:0.5rem; border-radius:1rem; cursor:pointer; width:80px; text-align:center;">🐶</div>
+                <div class="icon-item" data-icon="bird" style="font-size:2.5rem; background:#e9ecef; padding:0.5rem; border-radius:1rem; cursor:pointer; width:80px; text-align:center;">🐦</div>
+            </div>
+            <div class="status" id="iconStatus">✨ 点击正确图标验证</div>
+        </div>
+    </div>
+
+    <!-- 5. 反转单词码 -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>🔄 镜像反转码</span>
+            <button class="refresh-btn" data-refresh="reverse">⟳ 新单词</button>
+        </div>
+        <div class="captcha-content">
+            <div style="font-size:1.4rem; font-family:monospace; background:#e9ecef; padding:6px; border-radius:12px; text-align:center;" id="originalWord">hello</div>
+            <div class="input-group">
+                <input type="text" id="reverseInput" placeholder="输入反转后的单词" autocomplete="off">
+                <button id="verifyReverseBtn">🔄 验证</button>
+            </div>
+            <div class="status" id="reverseStatus">📝 反向书写，证明清醒</div>
+        </div>
+    </div>
+
+        <!-- 6. 九宫格图片点选验证码 -->
+    <div class="captcha-section">
+        <div class="section-title">
+            <span>🍅 九宫格点选验证码</span>
+            <button class="refresh-btn" data-refresh="grid">⟳ 刷新题目</button>
+        </div>
+        <div class="captcha-content">
+            <div style="margin-bottom:10px; text-align:center; font-weight:bold;" id="gridTaskDesc">请点击所有包含🍅番茄的图片</div>
+            <div id="gridContainer" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 400px; margin: 0 auto;">
+                <!-- 九个格子会由 JS 动态生成 -->
+            </div>
+            <button id="verifyGridBtn" style="margin-top: 16px; width: 100%;">✅ 验证选择</button>
+            <div class="status" id="gridStatus">✨ 点击图片选择/取消，然后点击验证</div>
+        </div>
+    </div>
+
+    <footer style="text-align:center; margin-top:2rem; font-size:0.8rem; color:#6c829b;">⚡ 逐个攻破验证码 → 通过全部即为「至尊真人」 | 每个都可独立刷新重置</footer>
+</div>
+
+<script>
+    // ==================== 全局状态 ====================
+        const cardState = {
+        captcha: false,
+        math: false,
+        puzzle: false,
+        icon: false,
+        reverse: false,
+        grid: false      // 新增九宫格状态
+    };
+
+    function updateCardUI(cardId, success, msgElement, successMsg = '✅ 验证通过！', failMsg = '❌ 验证失败，再试一次') {
+        const statusDiv = document.getElementById(msgElement);
+        if (!statusDiv) return;
+        if (success) {
+            statusDiv.innerHTML = `✅ ${successMsg}`;
+            statusDiv.className = 'status success';
+        } else {
+            statusDiv.innerHTML = `❌ ${failMsg}`;
+            statusDiv.className = 'status error';
+        }
+        if (success && cardId) cardState[cardId] = true;
+    }
+
+    // ==================== 1. 图片扭曲码 ====================
+    let currentCaptchaText = '';
+    function generateCaptcha() {
+        const canvas = document.getElementById('canvasCaptcha');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        let captcha = '';
+        for(let i = 0; i < 5; i++) captcha += chars[Math.floor(Math.random() * chars.length)];
+        currentCaptchaText = captcha;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#f0f2f5';
+        ctx.fillRect(0, 0, w, h);
+        const baseY = h / 1.8;
+        let currentX = 15;
+        for(let idx = 0; idx < captcha.length; idx++) {
+            const char = captcha[idx];
+            const fontSize = Math.floor(Math.random() * 23) + 26;
+            ctx.font = `bold ${fontSize}px "Courier New", monospace`;
+            const sinAmp = 8 + Math.random() * 12;
+            const sinFreq = 0.3 + Math.random() * 0.3;
+            const yOffset = Math.sin(currentX * sinFreq) * sinAmp;
+            const randYOffset = (Math.random() - 0.5) * 14;
+            const finalY = baseY + yOffset + randYOffset;
+            const xJitter = (Math.random() - 0.5) * 14;
+            const finalX = currentX + xJitter;
+            const angle = (Math.random() - 0.5) * 0.5;
+            const skewX = (Math.random() - 0.5) * 0.4;
+            ctx.save();
+            ctx.translate(finalX, finalY);
+            ctx.transform(1, 0, skewX, 1, 0, 0);
+            ctx.rotate(angle);
+            ctx.fillStyle = `hsl(${35 + Math.random() * 25}, 85%, 45%)`;
+            ctx.fillText(char, 0, 0);
+            ctx.restore();
+            currentX += fontSize * 0.75 + Math.random() * 6;
+        }
+        for(let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * w, Math.random() * h);
+            ctx.bezierCurveTo(Math.random() * w, Math.random() * h, Math.random() * w, Math.random() * h, Math.random() * w, Math.random() * h);
+            ctx.strokeStyle = `hsl(${Math.random() * 360}, 70%, 50%)`;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        }
+        for(let i = 0; i < 8; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * w, Math.random() * h);
+            ctx.lineTo(Math.random() * w, Math.random() * h);
+            ctx.strokeStyle = `rgba(0,0,0,0.2)`;
+            ctx.stroke();
+        }
+        for(let i = 0; i < 200; i++) {
+            ctx.fillStyle = `rgba(0,0,0,0.15)`;
+            ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
+        }
+    }
+    function resetCaptchaCard() {
+        generateCaptcha();
+        document.getElementById('captchaInput').value = '';
+        const statusDiv = document.getElementById('captcha1Status');
+        statusDiv.innerHTML = '🔄 已刷新，输入新验证码';
+        statusDiv.className = 'status';
+        cardState.captcha = false;
+    }
+    function verifyCaptcha() {
+        if(cardState.captcha) { updateCardUI('captcha', true, 'captcha1Status', '已通过，无需重复', ''); return; }
+        const userInput = document.getElementById('captchaInput').value.trim();
+        if(userInput.toLowerCase() === currentCaptchaText.toLowerCase()) updateCardUI('captcha', true, 'captcha1Status', '通过！图文匹配成功', '');
+        else updateCardUI('captcha', false, 'captcha1Status', '', '验证码错误，试试刷新');
+    }
+
+    // ==================== 2. 算术验证码 ====================
+    let currentMath = { a:0, b:0, answer:0 };
+    function generateMath() {
+        const a = Math.floor(Math.random() * 20) + 1;
+        const b = Math.floor(Math.random() * 20) + 1;
+        currentMath = { a, b, answer: a+b };
+        document.getElementById('mathQuestion').innerHTML = `${a} + ${b} = ?`;
+    }
+    function resetMathCard() {
+        generateMath();
+        document.getElementById('mathAnswer').value = '';
+        const statusDiv = document.getElementById('mathStatus');
+        statusDiv.innerHTML = '➕ 新算术题，算对即可通过';
+        statusDiv.className = 'status';
+        cardState.math = false;
+    }
+    function verifyMath() {
+        if(cardState.math) { updateCardUI('math', true, 'mathStatus', '算术题已完成!', ''); return; }
+        const answer = parseInt(document.getElementById('mathAnswer').value);
+        if(!isNaN(answer) && answer === currentMath.answer) updateCardUI('math', true, 'mathStatus', '算术正确，人类认证', '');
+        else updateCardUI('math', false, 'mathStatus', '', `结果不对，正确答案是${currentMath.answer}`);
+    }
+
+    // ==================== 3. 拼图滑块验证码（新）====================
+    let puzzleCanvas, puzzleCtx;
+    let bgImage = new Image();
+    let imageLoaded = false;
+    const CANVAS_W = 500, CANVAS_H = 250;
+    const HOLE_SIZE = 45;        // 空缺/拼图大小
+    let targetHole = null;        // 正确的空缺 { x, y, w, h }
+    let distractorHole = null;    // 干扰空缺
+    let puzzleImageData = null;    // 从背景截取的拼图图像数据
+    let currentPuzzleX = 0;       // 拼图当前X坐标（由滑块控制）
+    let puzzleY = 0;               // 拼图固定Y = targetHole.y
+    let slider = null;
+    let timerStarted = false;
+    let timeLeft = 30;
+    let timerInterval = null;
+    let puzzleSuccess = false;
+    let sliderEnabled = true;
+
+    // 生成两个空缺（不重叠），并指定targetHole（与拼图Y固定匹配）
+        // 生成两个空缺：最小左边距为画布宽度的1/3，两个空缺之间最小距离为一个滑块宽度
+        // 生成两个空缺：左边距 ≥ 画布宽度的1/3，中心距 ≥ HOLE_SIZE+5，竖直方向间距 ≥ HOLE_SIZE
+    function generateHoles() {
+        const margin = 10;                       // 基础右边距
+        const minLeftMargin = Math.floor(CANVAS_W / 3);  // 空缺左边缘最小为画布宽度的1/3
+        const minCenterDist = HOLE_SIZE + 5;     // 中心点最小距离 (45+5=50px)
+        const minVerticalDist = HOLE_SIZE;       // 竖直方向最小距离 (45px)
+        
+        const maxX = CANVAS_W - HOLE_SIZE - margin;
+        const minX = Math.min(minLeftMargin, maxX);
+        const maxY = CANVAS_H - HOLE_SIZE - margin;
+        const minY = margin;
+        
+        let hole1, hole2;
+        let attempts = 0;
+        const maxAttempts = 200;
+        
+        do {
+            // 随机生成第一个空缺
+            hole1 = {
+                x: Math.floor(Math.random() * (maxX - minX + 1) + minX),
+                y: Math.floor(Math.random() * (maxY - minY + 1) + minY),
+                w: HOLE_SIZE, h: HOLE_SIZE
+            };
+            // 随机生成第二个空缺
+            hole2 = {
+                x: Math.floor(Math.random() * (maxX - minX + 1) + minX),
+                y: Math.floor(Math.random() * (maxY - minY + 1) + minY),
+                w: HOLE_SIZE, h: HOLE_SIZE
+            };
+            
+            // 计算中心点距离
+            const c1 = { x: hole1.x + HOLE_SIZE/2, y: hole1.y + HOLE_SIZE/2 };
+            const c2 = { x: hole2.x + HOLE_SIZE/2, y: hole2.y + HOLE_SIZE/2 };
+            const dx = c1.x - c2.x;
+            const dy = c1.y - c2.y;
+            const centerDistance = Math.sqrt(dx*dx + dy*dy);
+            
+            // 检查所有条件
+            const valid = (centerDistance >= minCenterDist) &&
+                          (Math.abs(hole1.y - hole2.y) >= minVerticalDist) &&
+                          (hole1.x >= minLeftMargin) && (hole2.x >= minLeftMargin);
+            
+            if (valid) break;
+            attempts++;
+            if (attempts > maxAttempts) {
+                // 保底方案：将两个空缺放在左侧最小边距处和右侧，并且竖直方向拉开
+                hole1.x = minLeftMargin;
+                hole2.x = CANVAS_W - HOLE_SIZE - margin;
+                hole1.y = minY;
+                hole2.y = maxY;
+                break;
+            }
+        } while (true);
+        
+        // 随机选择其中一个作为目标空缺（拼图Y匹配的那一个）
+        const isFirstTarget = Math.random() < 0.5;
+        targetHole = isFirstTarget ? hole1 : hole2;
+        distractorHole = isFirstTarget ? hole2 : hole1;
+        puzzleY = targetHole.y;
+    }
+
+    // 从背景图片中截取目标空缺区域的图像数据
+    function capturePuzzleImage() {
+        if (!imageLoaded || !bgImage.complete) return false;
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = HOLE_SIZE;
+        offCanvas.height = HOLE_SIZE;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(bgImage, targetHole.x, targetHole.y, HOLE_SIZE, HOLE_SIZE, 0, 0, HOLE_SIZE, HOLE_SIZE);
+        puzzleImageData = offCtx.getImageData(0, 0, HOLE_SIZE, HOLE_SIZE);
+        return true;
+    }
+
+    // 绘制整个画布（背景 + 空缺遮罩 + 拼图块）
+    function drawCanvas() {
+        if (!puzzleCtx) return;
+        if (!imageLoaded || !bgImage.complete) return;
+        puzzleCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        // 绘制背景图
+        puzzleCtx.drawImage(bgImage, 0, 0, CANVAS_W, CANVAS_H);
+        // 绘制空缺（半透明黑色填充 + 白色虚线框）
+        const holes = [targetHole, distractorHole];
+        for (let h of holes) {
+            puzzleCtx.fillStyle = 'rgba(0,0,0,0.55)';
+            puzzleCtx.fillRect(h.x, h.y, h.w, h.h);
+            puzzleCtx.strokeStyle = 'white';
+            puzzleCtx.setLineDash([5, 5]);
+            puzzleCtx.strokeRect(h.x, h.y, h.w, h.h);
+            puzzleCtx.setLineDash([]);
+            // 添加提示图标
+            puzzleCtx.fillStyle = 'white';
+            puzzleCtx.font = '20px sans-serif';
+            puzzleCtx.fillText('↓', h.x + h.w/2 - 8, h.y + h.h/2 + 8);
+        }
+        // 绘制拼图块（使用截取的图像）
+        if (puzzleImageData) {
+            // 将图像数据绘制到画布上
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = HOLE_SIZE;
+            tempCanvas.height = HOLE_SIZE;
+            tempCanvas.getContext('2d').putImageData(puzzleImageData, 0, 0);
+            puzzleCtx.drawImage(tempCanvas, currentPuzzleX, puzzleY, HOLE_SIZE, HOLE_SIZE);
+            // 加一个边框使其明显
+            puzzleCtx.strokeStyle = '#ff8c42';
+            puzzleCtx.lineWidth = 2;
+            puzzleCtx.strokeRect(currentPuzzleX, puzzleY, HOLE_SIZE, HOLE_SIZE);
+        } else {
+            // fallback 纯色
+            puzzleCtx.fillStyle = '#ff8c42';
+            puzzleCtx.fillRect(currentPuzzleX, puzzleY, HOLE_SIZE, HOLE_SIZE);
+        }
+    }
+
+    // 验证逻辑
+    function verifyPuzzle() {
+        if (!sliderEnabled || puzzleSuccess) return;
+        if (!timerStarted) {
+            return;
+        }
+        const diffX = Math.abs(currentPuzzleX - targetHole.x);
+        if (diffX <= 6) {  // 容许误差6px
+            // 验证成功
+            if (timerInterval) clearInterval(timerInterval);
+            puzzleSuccess = true;
+            sliderEnabled = false;
+            slider.disabled = true;
+            updateCardUI('puzzle', true, 'puzzleStatus', '拼图位置正确！验证通过', '');
+            cardState.puzzle = true;
+            drawCanvas();
+        } else {
+            updateCardUI('puzzle', false, 'puzzleStatus', '', `位置偏差 ${diffX}px，请继续调整`);
+        }
+    }
+
+    // 重置拼图模块
+    function resetPuzzleCard() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerStarted = false;
+        timeLeft = 30;
+        document.getElementById('timerDisplay').innerText = timeLeft;
+        puzzleSuccess = false;
+        sliderEnabled = true;
+        if (slider) slider.disabled = false;
+        generateHoles();
+        // 重新截取拼图图像（图片需已加载）
+        if (imageLoaded && bgImage.complete) {
+            capturePuzzleImage();
+        }
+        currentPuzzleX = 0;
+        if (slider) {
+            slider.min = 0;
+            slider.max = CANVAS_W - HOLE_SIZE;
+            slider.value = 0;
+        }
+        drawCanvas();
+        const statusDiv = document.getElementById('puzzleStatus');
+        statusDiv.innerHTML = '✨ 拖动滑块，将拼图移动到正确空缺处，然后点击验证';
+        statusDiv.className = 'status';
+        cardState.puzzle = false;
+    }
+
+    // 滑块事件：更新拼图X并重绘，如果尚未启动计时器则启动计时器
+    function onSliderInput(e) {
+        if (!sliderEnabled || puzzleSuccess) return;
+        currentPuzzleX = parseInt(e.target.value);
+        drawCanvas();
+        if (!timerStarted) {
+            timerStarted = true;
+            timerInterval = setInterval(() => {
+                if (puzzleSuccess) return;
+                if (timeLeft <= 1) {
+                    clearInterval(timerInterval);
+                    sliderEnabled = false;
+                    slider.disabled = true;
+                    updateCardUI('puzzle', false, 'puzzleStatus', '', '⏰ 时间用完了！点击刷新按钮重试');
+                    cardState.puzzle = false;
+                } else {
+                    timeLeft--;
+                    document.getElementById('timerDisplay').innerText = timeLeft;
+                }
+            }, 1000);
+        }
+    }
+
+    // 初始化拼图模块（图片加载完成后）
+    function initPuzzle() {
+        puzzleCanvas = document.getElementById('puzzleCanvas');
+        if (!puzzleCanvas) return;
+        puzzleCtx = puzzleCanvas.getContext('2d');
+        puzzleCanvas.width = CANVAS_W;
+        puzzleCanvas.height = CANVAS_H;
+        slider = document.getElementById('puzzleSlider');
+        // 使用在线风景图（可更换URL）
+        bgImage.src = 'https://picsum.photos/id/104/500/250';
+        bgImage.crossOrigin = 'Anonymous';
+        bgImage.onload = () => {
+            imageLoaded = true;
+            generateHoles();
+            capturePuzzleImage();
+            currentPuzzleX = 0;
+            if (slider) {
+                slider.min = 0;
+                slider.max = CANVAS_W - HOLE_SIZE;
+                slider.value = 0;
+                slider.addEventListener('input', onSliderInput);
+                slider.addEventListener('change', function() {
+                    if (sliderEnabled && !puzzleSuccess) {
+                        verifyPuzzle();
+                    }
+                });
+            }
+            drawCanvas();
+        };
+        bgImage.onerror = () => {
+            // 图片加载失败时绘制渐变背景
+            imageLoaded = true;
+            generateHoles();
+            // 创建一个虚拟背景（渐变+网格）作为fallback，保证功能
+            const fallbackCanvas = document.createElement('canvas');
+            fallbackCanvas.width = CANVAS_W;
+            fallbackCanvas.height = CANVAS_H;
+            const fCtx = fallbackCanvas.getContext('2d');
+            const grad = fCtx.createLinearGradient(0, 0, 0, CANVAS_H);
+            grad.addColorStop(0, '#a1c4fd');
+            grad.addColorStop(1, '#c2e9fb');
+            fCtx.fillStyle = grad;
+            fCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+            for(let i=0;i<200;i++) {
+                fCtx.fillStyle = `rgba(255,255,255,0.2)`;
+                fCtx.fillRect(Math.random()*CANVAS_W, Math.random()*CANVAS_H, 2,2);
+            }
+            bgImage.src = fallbackCanvas.toDataURL();
+        };
+    }
+
+    // ==================== 4. 点选图标码 ====================
+    let currentIconTarget = 'dog';
+    const iconsMap = { cat:'🐱', dog:'🐶', bird:'🐦' };
+    function randomIconTarget() {
+        const keys = ['cat', 'dog', 'bird'];
+        const rand = keys[Math.floor(Math.random() * 3)];
+        currentIconTarget = rand;
+        document.getElementById('iconTaskDesc').innerHTML = `👉 请点击 ${iconsMap[rand]} 图标，证明直觉`;
+    }
+    function resetIconCard() {
+        randomIconTarget();
+        document.querySelectorAll('.icon-item').forEach(el => el.classList.remove('selected-correct'));
+        const statusDiv = document.getElementById('iconStatus');
+        statusDiv.innerHTML = '✨ 刷新目标，点击正确图标验证';
+        statusDiv.className = 'status';
+        cardState.icon = false;
+    }
+    function setupIconClicks() {
+        const icons = document.querySelectorAll('.icon-item');
+        icons.forEach(icon => {
+            icon.removeEventListener('click', iconClickHandler);
+            icon.addEventListener('click', iconClickHandler);
+        });
+    }
+    function iconClickHandler(e) {
+        if(cardState.icon) { updateCardUI('icon', true, 'iconStatus', '已完成点选，无需重复', ''); return; }
+        const selected = e.currentTarget.getAttribute('data-icon');
+        if(selected === currentIconTarget) {
+            updateCardUI('icon', true, 'iconStatus', `正确！点中${iconsMap[currentIconTarget]}，直觉敏锐`, '');
+            document.querySelectorAll('.icon-item').forEach(el => el.classList.remove('selected-correct'));
+            e.currentTarget.classList.add('selected-correct');
+        } else {
+            updateCardUI('icon', false, 'iconStatus', '', `点错了，应该点击${iconsMap[currentIconTarget]}`);
+        }
+    }
+
+    // ==================== 5. 反转单词 ====================
+    const wordBank = ['human', 'verify', 'captcha', 'puzzle', 'logic', 'brain', 'robot', 'alive'];
+    let currentReverseWord = 'human';
+    function generateReverseWord() {
+        const idx = Math.floor(Math.random() * wordBank.length);
+        currentReverseWord = wordBank[idx];
+        document.getElementById('originalWord').innerHTML = currentReverseWord;
+    }
+    function resetReverseCard() {
+        generateReverseWord();
+        document.getElementById('reverseInput').value = '';
+        const statusDiv = document.getElementById('reverseStatus');
+        statusDiv.innerHTML = '📝 反向书写单词 (大小写不限)';
+        statusDiv.className = 'status';
+        cardState.reverse = false;
+    }
+    function verifyReverse() {
+        if(cardState.reverse) { updateCardUI('reverse', true, 'reverseStatus', '反转挑战已征服', ''); return; }
+        const userRev = document.getElementById('reverseInput').value.trim().toLowerCase();
+        const correctRev = currentReverseWord.split('').reverse().join('').toLowerCase();
+        if(userRev === correctRev) updateCardUI('reverse', true, 'reverseStatus', '反转正确！思维敏捷', '');
+        else updateCardUI('reverse', false, 'reverseStatus', '', `反转错误，正确应为${correctRev}`);
+    }
+
+        // ==================== 6. 九宫格图片点选验证码 ====================
+    // ---------- 题库配置（你可以在这里增加更多题目）----------
+    const imageQuestions = [
+        {
+            name: "番茄",
+            keyword: "番茄",
+            targetIndices: [0, 1, 2],  // 正确答案所在的格子索引 (0~8)
+            images: [
+                "test_images/1.0.png",
+                "test_images/1.1.png",
+                "test_images/1.2.png",
+                "test_images/1.3.png",
+                "test_images/1.4.png",
+                "test_images/1.5.png",
+                "test_images/1.6.png",
+                "test_images/1.7.png",
+                "test_images/1.8.png"
+            ]
+        },
+        {
+            name: "自行车",
+            keyword: "自行车",
+            targetIndices: [2, 5, 7, 8],  // 根据你的实际图片正确格子修改
+            images: [
+                "test_images/2.0.png",
+                "test_images/2.1.png",
+                "test_images/2.2.png",
+                "test_images/2.3.png",
+                "test_images/2.4.png",
+                "test_images/2.5.png",
+                "test_images/2.6.png",
+                "test_images/2.7.png",
+                "test_images/2.8.png"
+            ]
+        },
+        {
+            name: "红绿灯",
+            keyword: "红绿灯",
+            targetIndices: [2, 5],  // 根据你的实际图片正确格子修改
+            images: [
+                "test_images/3.0.png",
+                "test_images/3.1.png",
+                "test_images/3.2.png",
+                "test_images/3.3.png",
+                "test_images/3.4.png",
+                "test_images/3.5.png",
+                "test_images/3.6.png",
+                "test_images/3.7.png",
+                "test_images/3.8.png"
+            ]
+        }
+    ];
+
+    // 当前使用的题目索引（随机）
+    let currentQuestionIndex = 0;
+    let currentQuestion = null;
+    let selectedIndices = new Set();   // 存储用户选中的格子索引
+    let gridVerified = false;          // 是否已验证通过
+
+    // 生成九宫格 DOM
+    function buildGrid() {
+        const container = document.getElementById('gridContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+            const imgUrl = currentQuestion.images[i];
+            const div = document.createElement('div');
+            div.className = 'grid-item';
+            div.setAttribute('data-index', i);
+            div.style.cssText = `
+                aspect-ratio: 1 / 1;
+                background: #e9ecef;
+                border-radius: 12px;
+                overflow: hidden;
+                cursor: pointer;
+                border: 3px solid transparent;
+                transition: all 0.1s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.onerror = () => { img.src = 'https://placehold.co/200x200?text=No+Image'; };
+            div.appendChild(img);
+            // 高亮当前选中状态
+            if (selectedIndices.has(i)) {
+                div.style.borderColor = '#2c5f8a';
+                div.style.backgroundColor = '#d0e2f0';
+            }
+            div.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (gridVerified) return;
+                const idx = parseInt(div.getAttribute('data-index'));
+                if (selectedIndices.has(idx)) {
+                    selectedIndices.delete(idx);
+                    div.style.borderColor = 'transparent';
+                    div.style.backgroundColor = '#e9ecef';
+                } else {
+                    selectedIndices.add(idx);
+                    div.style.borderColor = '#2c5f8a';
+                    div.style.backgroundColor = '#d0e2f0';
+                }
+            });
+            container.appendChild(div);
+        }
+    }
+
+    // 刷新题目（随机选择）
+    function resetGridCard() {
+        // 随机选择一个题目（如果题库只有一个，就固定用它）
+        if (imageQuestions.length === 0) {
+            console.error("没有配置任何题目！");
+            return;
+        }
+        currentQuestionIndex = Math.floor(Math.random() * imageQuestions.length);
+        currentQuestion = imageQuestions[currentQuestionIndex];
+        // 更新题目描述
+        const desc = document.getElementById('gridTaskDesc');
+        if (desc) desc.innerHTML = `🍅 请点击所有包含 “${currentQuestion.name}” 的图片`;
+        // 重置选中状态
+        selectedIndices.clear();
+        gridVerified = false;
+        // 重新绘制九宫格
+        buildGrid();
+        // 重置状态显示
+        const statusDiv = document.getElementById('gridStatus');
+        if (statusDiv) {
+            statusDiv.innerHTML = '✨ 点击图片选择/取消，然后点击验证';
+            statusDiv.className = 'status';
+        }
+        cardState.grid = false;
+    }
+
+    // 验证用户选择
+    function verifyGrid() {
+        if (gridVerified) {
+            updateCardUI('grid', true, 'gridStatus', '已经通过验证', '');
+            return;
+        }
+        if (!currentQuestion) return;
+        const correctSet = new Set(currentQuestion.targetIndices);
+        // 检查选中的索引是否完全等于正确答案集合
+        let isCorrect = true;
+        if (selectedIndices.size !== correctSet.size) {
+            isCorrect = false;
+        } else {
+            for (let idx of selectedIndices) {
+                if (!correctSet.has(idx)) {
+                    isCorrect = false;
+                    break;
+                }
+            }
+        }
+        if (isCorrect) {
+            gridVerified = true;
+            updateCardUI('grid', true, 'gridStatus', '完全正确！验证通过', '');
+            cardState.grid = true;
+            // 可选：锁定格子不可再点
+            const items = document.querySelectorAll('.grid-item');
+            items.forEach(item => {
+                item.style.pointerEvents = 'none';
+            });
+        } else {
+            updateCardUI('grid', false, 'gridStatus', '', '选择有误，请重新点击图片');
+        }
+    }
+
+    // 初始化时加载第一个题目
+    function initGrid() {
+        if (imageQuestions.length === 0) {
+            console.warn("没有图片题库，请先配置 imageQuestions");
+            return;
+        }
+        resetGridCard();
+        const verifyBtn = document.getElementById('verifyGridBtn');
+        if (verifyBtn) verifyBtn.onclick = verifyGrid;
+    }
+
+    // ==================== 全局绑定与初始化 ====================
+    function bindAll() {
+        document.getElementById('verifyCaptchaBtn').onclick = verifyCaptcha;
+        document.getElementById('verifyMathBtn').onclick = verifyMath;
+        document.getElementById('verifyReverseBtn').onclick = verifyReverse;
+        const refreshBtns = document.querySelectorAll('[data-refresh]');
+        refreshBtns.forEach(btn => {
+            btn.onclick = (e) => {
+                const target = btn.getAttribute('data-refresh');
+                if(target === 'captcha1') resetCaptchaCard();
+                else if(target === 'math') resetMathCard();
+                else if(target === 'puzzle') resetPuzzleCard();
+                else if(target === 'icons') resetIconCard();
+                else if(target === 'grid') resetGridCard();
+                else if(target === 'reverse') resetReverseCard();
+                e.stopPropagation();
+            };
+        });
+        setupIconClicks();
+    }
+
+    function initAll() {
+        generateCaptcha();
+        generateMath();
+        initPuzzle();      // 异步加载图片
+        randomIconTarget();
+        generateReverseWord();
+        bindAll();
+        cardState.captcha = false;
+        cardState.math = false;
+        cardState.puzzle = false;
+        cardState.icon = false;
+        cardState.reverse = false;
+        cardState.checkbox = false;
+        setupIconClicks();
+        // 重置状态样式
+        document.getElementById('captcha1Status').className = 'status';
+        document.getElementById('mathStatus').className = 'status';
+        document.getElementById('iconStatus').className = 'status';
+        document.getElementById('reverseStatus').className = 'status';
+        initGrid();
+    }
+
+    initAll();
+</script>
+</body>
+</html>
